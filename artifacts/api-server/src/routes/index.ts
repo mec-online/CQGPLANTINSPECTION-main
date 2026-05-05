@@ -1,0 +1,32 @@
+import { Router } from "express";
+import healthRouter from "./health.js";
+import authRouter from "./auth.js";
+import sitesRouter from "./sites.js";
+import assetsRouter from "./assets.js";
+import templatesRouter from "./templates.js";
+import inspectionsRouter from "./inspections.js";
+import workOrdersRouter from "./workOrders.js";
+import breakdownsRouter from "./breakdowns.js";
+import ppmRouter from "./ppm.js";
+import movementsRouter from "./movements.js";
+import attachmentsRouter from "./attachments.js";
+import reportsRouter from "./reports.js";
+import adminRouter from "./admin.js";
+import assetScansRouter from "./assetScans.js";
+
+export const apiRouter = Router();
+
+apiRouter.use(healthRouter);
+apiRouter.use("/auth", authRouter);
+apiRouter.use("/sites", sitesRouter);
+apiRouter.use("/assets", assetsRouter);
+apiRouter.use("/templates", templatesRouter);
+apiRouter.use("/inspections", inspectionsRouter);
+apiRouter.use("/work-orders", workOrdersRouter);
+apiRouter.use("/breakdowns", breakdownsRouter);
+apiRouter.use("/ppm", ppmRouter);
+apiRouter.use("/movements", movementsRouter);
+apiRouter.use("/attachments", attachmentsRouter);
+apiRouter.use("/reports", reportsRouter);
+apiRouter.use("/admin", adminRouter);
+apiRouter.use("/asset-scans", assetScansRouter);

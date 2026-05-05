@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50:  #f0fdf5;
+  --color-brand-100: #dcfce8;
+  --color-brand-200: #bbf7d1;
+  --color-brand-300: #86efac;
+  --color-brand-400: #4ade80;
+  --color-brand-500: #297e49;
+  --color-brand-600: #22693d;
+  --color-brand-700: #1b5431;
+  --color-brand-800: #153f26;
+  --color-brand-900: #0f2a1a;
+
+  --color-crimson-50:  #fef2f2;
+  --color-crimson-100: #fee2e2;
+  --color-crimson-200: #fecaca;
+  --color-crimson-300: #fca5a5;
+  --color-crimson-400: #f87171;
+  --color-crimson-500: #dc2d2f;
+  --color-crimson-600: #b91c1c;
+  --color-crimson-700: #991b1b;
+  --color-crimson-800: #7f1d1d;
+  --color-crimson-900: #651a1a;
+
+  --font-family-sans: 'Arial', 'Helvetica', sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
+
+@layer components {
+  /* Status badges */
+  .badge-pass          { @apply bg-green-100 text-green-800; }
+  .badge-fail          { @apply bg-red-100 text-red-800; }
+  .badge-monitor       { @apply bg-amber-100 text-amber-800; }
+  .badge-na            { @apply bg-gray-100 text-gray-600; }
+  .badge-open          { @apply bg-red-100 text-red-800; }
+  .badge-in-progress   { @apply bg-amber-100 text-amber-800; }
+  .badge-waiting-parts { @apply bg-purple-100 text-purple-800; }
+  .badge-completed     { @apply bg-blue-100 text-blue-800; }
+  .badge-verified      { @apply bg-green-100 text-green-800; }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-brand-600 active:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-white border border-gray-300 px-5 py-3 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-crimson-500 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-crimson-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+  .btn-sm {
+    @apply px-3 py-2 text-sm;
+  }
+
+  /* Card */
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-4;
+  }
+
+  /* Form controls */
+  .form-input {
+    @apply block w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:bg-gray-50 disabled:text-gray-500;
+  }
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+  .form-error {
+    @apply text-sm text-crimson-500 mt-1;
+  }
+}

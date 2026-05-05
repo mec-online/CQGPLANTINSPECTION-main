@@ -1,0 +1,3299 @@
+openapi: "3.1.0"
+info:
+  title: Api
+  version: "1.0.0"
+  description: CQG Plant Inspection API
+
+servers:
+  - url: /api
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ── Enums ──────────────────────────────────────────────────────────────
+  schemas:
+    Criticality:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    TemplateType:
+      type: string
+      enum: [PRE_USE, ROUTINE, SAFETY, ENVIRONMENTAL, CUSTOM]
+
+    InspectionStatus:
+      type: string
+      enum: [IN_PROGRESS, COMPLETED]
+
+    InspectionResult:
+      type: string
+      enum: [PASS, FAIL, MONITOR]
+
+    AnswerResult:
+      type: string
+      enum: [PASS, FAIL, MONITOR, N_A]
+
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, URGENT]
+
+    WorkOrderStatus:
+      type: string
+      enum: [OPEN, IN_PROGRESS, WAITING_PARTS, COMPLETED, VERIFIED]
+
+    PPMFrequency:
+      type: string
+      enum: [DAILY, WEEKLY, MONTHLY, QUARTERLY, ANNUAL]
+
+    UserRole:
+      type: string
+      enum: [ADMIN, QUALITY_MANAGER, SITE_MANAGER, OPERATOR]
+
+    ScanMethod:
+      type: string
+      enum: [QR, NFC, BARCODE, MANUAL]
+
+    # ── Shared inline shapes ─────────────────────────────────────────────
+    SiteRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+      required: [id, name, code]
+
+    AreaRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required: [id, name]
+
+    AssetRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plantId:
+          type: string
+          nullable: true
+      required: [id, name]
+
+    UserRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required: [id, name]
+
+    TemplateRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/TemplateType"
+      required: [id, name, type]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    # ── Domain models ────────────────────────────────────────────────────
+    Site:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        address:
+          type: string
+          nullable: true
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        isActive:
+          type: boolean
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/Area"
+        _count:
+          type: object
+          properties:
+            assets:
+              type: integer
+            inspections:
+              type: integer
+            workOrders:
+              type: integer
+      required: [id, name, code, isActive]
+
+    Area:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required: [id, siteId, name]
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plantId:
+          type: string
+          nullable: true
+        serialNumber:
+          type: string
+          nullable: true
+        manufacturer:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        installDate:
+          type: string
+          format: date-time
+          nullable: true
+        criticality:
+          $ref: "#/components/schemas/Criticality"
+        isMobile:
+          type: boolean
+        isActive:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+        area:
+          $ref: "#/components/schemas/AreaRef"
+          nullable: true
+        currentSite:
+          type: object
+          nullable: true
+          properties:
+            name:
+              type: string
+            code:
+              type: string
+      required: [id, name, criticality, isMobile, isActive]
+
+    AssetDetail:
+      allOf:
+        - $ref: "#/components/schemas/Asset"
+        - type: object
+          properties:
+            ppmSchedules:
+              type: array
+              items:
+                $ref: "#/components/schemas/PPMSchedule"
+
+    AssetHistory:
+      type: object
+      properties:
+        inspections:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              startedAt:
+                type: string
+                format: date-time
+              completedAt:
+                type: string
+                format: date-time
+                nullable: true
+              status:
+                $ref: "#/components/schemas/InspectionStatus"
+              overallResult:
+                $ref: "#/components/schemas/InspectionResult"
+                nullable: true
+              template:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                  type:
+                    $ref: "#/components/schemas/TemplateType"
+              completedBy:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+        workOrders:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              title:
+                type: string
+              priority:
+                $ref: "#/components/schemas/Priority"
+              status:
+                $ref: "#/components/schemas/WorkOrderStatus"
+              createdAt:
+                type: string
+                format: date-time
+              completedAt:
+                type: string
+                format: date-time
+                nullable: true
+              createdBy:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+              assignedTo:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+        breakdowns:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              startedAt:
+                type: string
+                format: date-time
+              resolvedAt:
+                type: string
+                format: date-time
+                nullable: true
+              durationMinutes:
+                type: integer
+                nullable: true
+              description:
+                type: string
+              cause:
+                type: string
+                nullable: true
+              reportedBy:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+        movements:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              movedAt:
+                type: string
+                format: date-time
+              fromSiteId:
+                type: string
+                format: uuid
+                nullable: true
+              site:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                  code:
+                    type: string
+              movedBy:
+                type: object
+                nullable: true
+                properties:
+                  name:
+                    type: string
+              notes:
+                type: string
+                nullable: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/UserRole"
+        siteId:
+          type: string
+          format: uuid
+          nullable: true
+        isActive:
+          type: boolean
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+      required: [id, name, email, role, isActive]
+
+    InspectionTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/TemplateType"
+        siteId:
+          type: string
+          format: uuid
+          nullable: true
+        isActive:
+          type: boolean
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateSection"
+        _count:
+          type: object
+          properties:
+            inspections:
+              type: integer
+      required: [id, name, type, isActive]
+
+    TemplateSection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        order:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateQuestion"
+      required: [id, templateId, title, order]
+
+    TemplateQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sectionId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        order:
+          type: integer
+        requiresEvidenceOnFail:
+          type: boolean
+        allowMonitor:
+          type: boolean
+        helpText:
+          type: string
+          nullable: true
+      required: [id, sectionId, text, order, requiresEvidenceOnFail, allowMonitor]
+
+    Inspection:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+          nullable: true
+        siteId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/InspectionStatus"
+        overallResult:
+          $ref: "#/components/schemas/InspectionResult"
+          nullable: true
+        locationLat:
+          type: number
+          nullable: true
+        locationLng:
+          type: number
+          nullable: true
+        template:
+          $ref: "#/components/schemas/TemplateRef"
+          nullable: true
+        asset:
+          $ref: "#/components/schemas/AssetRef"
+          nullable: true
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+        completedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        _count:
+          type: object
+          properties:
+            answers:
+              type: integer
+            workOrders:
+              type: integer
+      required: [id, templateId, siteId, startedAt, status]
+
+    InspectionDetail:
+      allOf:
+        - $ref: "#/components/schemas/Inspection"
+        - type: object
+          properties:
+            template:
+              $ref: "#/components/schemas/InspectionTemplate"
+            answers:
+              type: array
+              items:
+                $ref: "#/components/schemas/InspectionAnswer"
+            workOrders:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  priority:
+                    $ref: "#/components/schemas/Priority"
+                  status:
+                    $ref: "#/components/schemas/WorkOrderStatus"
+                  createdAt:
+                    type: string
+                    format: date-time
+
+    InspectionAnswer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        inspectionId:
+          type: string
+          format: uuid
+        questionId:
+          type: string
+          format: uuid
+        result:
+          $ref: "#/components/schemas/AnswerResult"
+        notes:
+          type: string
+          nullable: true
+        answeredById:
+          type: string
+          format: uuid
+          nullable: true
+        answeredAt:
+          type: string
+          format: date-time
+          nullable: true
+        locationLat:
+          type: number
+          nullable: true
+        locationLng:
+          type: number
+          nullable: true
+        question:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            text:
+              type: string
+            order:
+              type: integer
+            sectionId:
+              type: string
+              format: uuid
+        answeredBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttachmentRef"
+      required: [id, inspectionId, questionId, result]
+
+    InspectionSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+          nullable: true
+        siteId:
+          type: string
+          format: uuid
+        frequency:
+          $ref: "#/components/schemas/PPMFrequency"
+        nextDueAt:
+          type: string
+          format: date-time
+        assignedRoleId:
+          type: string
+          nullable: true
+        template:
+          $ref: "#/components/schemas/TemplateRef"
+          nullable: true
+      required: [id, templateId, siteId, frequency, nextDueAt]
+
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        priority:
+          $ref: "#/components/schemas/Priority"
+        status:
+          $ref: "#/components/schemas/WorkOrderStatus"
+        siteId:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+          nullable: true
+        assignedToId:
+          type: string
+          format: uuid
+          nullable: true
+        createdById:
+          type: string
+          format: uuid
+        inspectionId:
+          type: string
+          format: uuid
+          nullable: true
+        inspectionAnswerId:
+          type: string
+          format: uuid
+          nullable: true
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+        asset:
+          $ref: "#/components/schemas/AssetRef"
+          nullable: true
+        assignedTo:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        createdBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        _count:
+          type: object
+          properties:
+            attachments:
+              type: integer
+        isOverdue:
+          type: boolean
+      required: [id, title, priority, status, siteId, createdById, createdAt]
+
+    WorkOrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/WorkOrder"
+        - type: object
+          properties:
+            verifiedBy:
+              $ref: "#/components/schemas/UserRef"
+              nullable: true
+            inspection:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                startedAt:
+                  type: string
+                  format: date-time
+                overallResult:
+                  $ref: "#/components/schemas/InspectionResult"
+                  nullable: true
+            inspectionAnswer:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                result:
+                  $ref: "#/components/schemas/AnswerResult"
+                question:
+                  type: object
+                  nullable: true
+                  properties:
+                    text:
+                      type: string
+            attachments:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  filename:
+                    type: string
+                  mimeType:
+                    type: string
+                  size:
+                    type: integer
+                  uploadedAt:
+                    type: string
+                    format: date-time
+                  uploadedBy:
+                    type: object
+                    nullable: true
+                    properties:
+                      name:
+                        type: string
+                  previewUrl:
+                    type: string
+
+    Breakdown:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMinutes:
+          type: integer
+          nullable: true
+        manHours:
+          type: number
+          nullable: true
+        partsCost:
+          type: number
+          nullable: true
+        description:
+          type: string
+        cause:
+          type: string
+          nullable: true
+        resolution:
+          type: string
+          nullable: true
+        area:
+          type: string
+          nullable: true
+        asset:
+          $ref: "#/components/schemas/AssetRef"
+          nullable: true
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+        reportedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        _count:
+          type: object
+          properties:
+            attachments:
+              type: integer
+      required: [id, assetId, siteId, startedAt, description]
+
+    BreakdownTrends:
+      type: object
+      properties:
+        byAsset:
+          type: array
+          items:
+            type: object
+            properties:
+              assetId:
+                type: string
+                format: uuid
+              assetName:
+                type: string
+              plantId:
+                type: string
+                nullable: true
+              siteCode:
+                type: string
+              count:
+                type: integer
+              totalDowntimeMinutes:
+                type: integer
+              avgDowntimeMinutes:
+                type: integer
+              lastBreakdownAt:
+                type: string
+                format: date-time
+                nullable: true
+              mtbfDays:
+                type: number
+                nullable: true
+              predictedNextAt:
+                type: string
+                format: date-time
+                nullable: true
+        bySite:
+          type: array
+          items:
+            type: object
+            properties:
+              siteId:
+                type: string
+                format: uuid
+              siteName:
+                type: string
+              siteCode:
+                type: string
+              count:
+                type: integer
+              totalDowntimeMinutes:
+                type: integer
+        byMonth:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+              count:
+                type: integer
+              totalDowntimeMinutes:
+                type: integer
+        byCause:
+          type: array
+          items:
+            type: object
+            properties:
+              cause:
+                type: string
+              count:
+                type: integer
+        total:
+          type: integer
+
+    BreakdownPrediction:
+      type: object
+      properties:
+        prediction:
+          type: string
+        riskLevel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        mtbfDays:
+          type: integer
+          nullable: true
+        daysUntilPredicted:
+          type: integer
+          nullable: true
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    PPMSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        templateId:
+          type: string
+          format: uuid
+          nullable: true
+        taskName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        frequency:
+          $ref: "#/components/schemas/PPMFrequency"
+        nextDueAt:
+          type: string
+          format: date-time
+        lastCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        asset:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            plantId:
+              type: string
+              nullable: true
+            site:
+              $ref: "#/components/schemas/SiteRef"
+              nullable: true
+        template:
+          $ref: "#/components/schemas/TemplateRef"
+          nullable: true
+        completions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PPMCompletion"
+      required: [id, assetId, taskName, frequency, nextDueAt]
+
+    PPMCompletion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ppmScheduleId:
+          type: string
+          format: uuid
+        completedById:
+          type: string
+          format: uuid
+        completedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          nullable: true
+        completedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+      required: [id, ppmScheduleId, completedById, completedAt]
+
+    AssetMovement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        fromSiteId:
+          type: string
+          format: uuid
+          nullable: true
+        toSiteId:
+          type: string
+          format: uuid
+        movedById:
+          type: string
+          format: uuid
+        movedAt:
+          type: string
+          format: date-time
+        preInspectionId:
+          type: string
+          format: uuid
+          nullable: true
+        postInspectionId:
+          type: string
+          format: uuid
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        asset:
+          $ref: "#/components/schemas/AssetRef"
+          nullable: true
+        site:
+          $ref: "#/components/schemas/SiteRef"
+          nullable: true
+        movedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+      required: [id, assetId, toSiteId, movedById, movedAt]
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        uploadedAt:
+          type: string
+          format: date-time
+        uploadedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+        previewUrl:
+          type: string
+      required: [id, filename, mimeType, size, uploadedAt]
+
+    AttachmentRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        uploadedAt:
+          type: string
+          format: date-time
+      required: [id, filename, mimeType, size, uploadedAt]
+
+    AssetScan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assetId:
+          type: string
+          format: uuid
+        scannedById:
+          type: string
+          format: uuid
+        method:
+          $ref: "#/components/schemas/ScanMethod"
+        scannedAt:
+          type: string
+          format: date-time
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        deviceInfo:
+          type: string
+          nullable: true
+        asset:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            plantId:
+              type: string
+              nullable: true
+            site:
+              type: object
+              nullable: true
+              properties:
+                name:
+                  type: string
+                code:
+                  type: string
+        scannedBy:
+          $ref: "#/components/schemas/UserRef"
+          nullable: true
+      required: [id, assetId, scannedById, method, scannedAt]
+
+    AppSetting:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        updatedById:
+          type: string
+          format: uuid
+          nullable: true
+      required: [key, value]
+
+    # ── Auth response shapes ──────────────────────────────────────────────
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    # ── Report shapes ─────────────────────────────────────────────────────
+    ComplianceReport:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        bySite:
+          type: array
+          items:
+            type: object
+            properties:
+              site:
+                $ref: "#/components/schemas/SiteRef"
+              total:
+                type: integer
+              completed:
+                type: integer
+              passed:
+                type: integer
+              failed:
+                type: integer
+              monitored:
+                type: integer
+              complianceRate:
+                type: integer
+                nullable: true
+
+    FailureReportEntry:
+      type: object
+      properties:
+        assetId:
+          type: string
+          format: uuid
+        assetName:
+          type: string
+        plantId:
+          type: string
+          nullable: true
+        siteCode:
+          type: string
+        failCount:
+          type: integer
+        workOrderCount:
+          type: integer
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              count:
+                type: integer
+
+    WorkOrderReport:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            open:
+              type: integer
+            inProgress:
+              type: integer
+            waitingParts:
+              type: integer
+            completed:
+              type: integer
+            verified:
+              type: integer
+            overdue:
+              type: integer
+        bySite:
+          type: array
+          items:
+            type: object
+            properties:
+              siteCode:
+                type: string
+              siteName:
+                type: string
+              open:
+                type: integer
+              inProgress:
+                type: integer
+              completed:
+                type: integer
+              overdue:
+                type: integer
+        byPriority:
+          type: array
+          items:
+            type: object
+            properties:
+              priority:
+                type: string
+              count:
+                type: integer
+
+    AuditReport:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              type:
+                type: string
+                enum: [INSPECTION, WORK_ORDER, BREAKDOWN, PPM]
+              title:
+                type: string
+              assetName:
+                type: string
+                nullable: true
+              siteName:
+                type: string
+              siteCode:
+                type: string
+              dueDate:
+                type: string
+                format: date-time
+                nullable: true
+              completedAt:
+                type: string
+                format: date-time
+                nullable: true
+              status:
+                type: string
+              daysToClose:
+                type: number
+                nullable: true
+              isOverdue:
+                type: boolean
+              priority:
+                type: string
+                nullable: true
+              manHours:
+                type: number
+                nullable: true
+              partsCost:
+                type: number
+                nullable: true
+        total:
+          type: integer
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            closed:
+              type: integer
+            openOrOverdue:
+              type: integer
+            avgDaysToClose:
+              type: number
+              nullable: true
+            pctClosed:
+              type: integer
+              nullable: true
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+
+    BreakdownReport:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+        total:
+          type: integer
+        resolved:
+          type: integer
+        totalDowntimeMinutes:
+          type: integer
+        avgDurationMinutes:
+          type: integer
+          nullable: true
+        byCause:
+          type: object
+          additionalProperties:
+            type: integer
+
+# ── Paths ──────────────────────────────────────────────────────────────
+paths:
+  # ── Health ───────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ── Auth ─────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Authenticate with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Missing fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Sites ────────────────────────────────────────────────────────────
+  /sites:
+    get:
+      operationId: getSites
+      tags: [sites]
+      summary: List all active sites
+      responses:
+        "200":
+          description: List of sites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Site"
+
+  /sites/{id}:
+    get:
+      operationId: getSite
+      tags: [sites]
+      summary: Get site by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Site detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Site"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sites/{id}/areas:
+    get:
+      operationId: getSiteAreas
+      tags: [sites]
+      summary: List areas for a site
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of areas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Area"
+
+  /sites/{id}/assets:
+    get:
+      operationId: getSiteAssets
+      tags: [sites]
+      summary: List active assets for a site
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+
+  # ── Assets ───────────────────────────────────────────────────────────
+  /assets:
+    get:
+      operationId: getAssets
+      tags: [assets]
+      summary: List assets
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create a new asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [siteId, name]
+              properties:
+                siteId:
+                  type: string
+                  format: uuid
+                areaId:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                plantId:
+                  type: string
+                serialNumber:
+                  type: string
+                manufacturer:
+                  type: string
+                model:
+                  type: string
+                installDate:
+                  type: string
+                  format: date-time
+                criticality:
+                  $ref: "#/components/schemas/Criticality"
+                isMobile:
+                  type: boolean
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Created asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /assets/{id}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get asset by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Asset detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                areaId:
+                  type: string
+                  format: uuid
+                plantId:
+                  type: string
+                serialNumber:
+                  type: string
+                manufacturer:
+                  type: string
+                model:
+                  type: string
+                installDate:
+                  type: string
+                  format: date-time
+                criticality:
+                  $ref: "#/components/schemas/Criticality"
+                isMobile:
+                  type: boolean
+                isActive:
+                  type: boolean
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Updated asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{id}/history:
+    get:
+      operationId: getAssetHistory
+      tags: [assets]
+      summary: Get full history for an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Asset history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetHistory"
+
+  # ── Templates ────────────────────────────────────────────────────────
+  /templates:
+    get:
+      operationId: getTemplates
+      tags: [templates]
+      summary: List inspection templates
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InspectionTemplate"
+    post:
+      operationId: createTemplate
+      tags: [templates]
+      summary: Create an inspection template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                type:
+                  $ref: "#/components/schemas/TemplateType"
+                siteId:
+                  type: string
+                  format: uuid
+                sections:
+                  type: array
+                  items:
+                    type: object
+                    required: [title, order]
+                    properties:
+                      title:
+                        type: string
+                      order:
+                        type: integer
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          required: [text, order]
+                          properties:
+                            text:
+                              type: string
+                            order:
+                              type: integer
+                            requiresEvidenceOnFail:
+                              type: boolean
+                            allowMonitor:
+                              type: boolean
+                            helpText:
+                              type: string
+      responses:
+        "201":
+          description: Created template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionTemplate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /templates/{id}:
+    get:
+      operationId: getTemplate
+      tags: [templates]
+      summary: Get template by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Template detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionTemplate"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateTemplate
+      tags: [templates]
+      summary: Update a template (replaces sections)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                type:
+                  $ref: "#/components/schemas/TemplateType"
+                siteId:
+                  type: string
+                  format: uuid
+                isActive:
+                  type: boolean
+                sections:
+                  type: array
+                  items:
+                    type: object
+                    required: [title, order]
+                    properties:
+                      title:
+                        type: string
+                      order:
+                        type: integer
+                      questions:
+                        type: array
+                        items:
+                          type: object
+                          required: [text, order]
+                          properties:
+                            text:
+                              type: string
+                            order:
+                              type: integer
+                            requiresEvidenceOnFail:
+                              type: boolean
+                            allowMonitor:
+                              type: boolean
+                            helpText:
+                              type: string
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionTemplate"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Inspections ──────────────────────────────────────────────────────
+  /inspections:
+    get:
+      operationId: getInspections
+      tags: [inspections]
+      summary: List inspections
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: assetId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/InspectionStatus"
+        - name: templateId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inspections:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Inspection"
+                  total:
+                    type: integer
+    post:
+      operationId: createInspection
+      tags: [inspections]
+      summary: Start a new inspection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId, siteId]
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                assetId:
+                  type: string
+                  format: uuid
+                siteId:
+                  type: string
+                  format: uuid
+                locationLat:
+                  type: number
+                locationLng:
+                  type: number
+      responses:
+        "201":
+          description: Created inspection with full template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionDetail"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inspections/{id}:
+    get:
+      operationId: getInspection
+      tags: [inspections]
+      summary: Get inspection by ID with answers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Inspection detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inspections/{id}/answers:
+    put:
+      operationId: saveInspectionAnswers
+      tags: [inspections]
+      summary: Save or update inspection answers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  items:
+                    type: object
+                    required: [questionId, result]
+                    properties:
+                      questionId:
+                        type: string
+                        format: uuid
+                      result:
+                        $ref: "#/components/schemas/AnswerResult"
+                      notes:
+                        type: string
+                      locationLat:
+                        type: number
+                      locationLng:
+                        type: number
+      responses:
+        "200":
+          description: Saved answers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InspectionAnswer"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Inspection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inspections/{id}/complete:
+    post:
+      operationId: completeInspection
+      tags: [inspections]
+      summary: Complete an inspection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Completed inspection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inspection"
+        "400":
+          description: Inspection not in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inspections/schedules:
+    get:
+      operationId: getInspectionSchedules
+      tags: [inspections]
+      summary: List inspection schedules
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: assetId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InspectionSchedule"
+    post:
+      operationId: createInspectionSchedule
+      tags: [inspections]
+      summary: Create an inspection schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId, siteId, frequency, nextDueAt]
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                assetId:
+                  type: string
+                  format: uuid
+                siteId:
+                  type: string
+                  format: uuid
+                frequency:
+                  $ref: "#/components/schemas/PPMFrequency"
+                nextDueAt:
+                  type: string
+                  format: date-time
+                assignedRoleId:
+                  type: string
+      responses:
+        "201":
+          description: Created schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionSchedule"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inspections/schedules/overdue:
+    get:
+      operationId: getOverdueInspectionSchedules
+      tags: [inspections]
+      summary: List overdue inspection schedules
+      responses:
+        "200":
+          description: Overdue schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InspectionSchedule"
+
+  /inspections/schedules/{id}:
+    delete:
+      operationId: deleteInspectionSchedule
+      tags: [inspections]
+      summary: Delete an inspection schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Work Orders ──────────────────────────────────────────────────────
+  /work-orders:
+    get:
+      operationId: getWorkOrders
+      tags: [work-orders]
+      summary: List work orders
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/WorkOrderStatus"
+        - name: priority
+          in: query
+          schema:
+            $ref: "#/components/schemas/Priority"
+        - name: assignedToId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workOrders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkOrder"
+                  total:
+                    type: integer
+    post:
+      operationId: createWorkOrder
+      tags: [work-orders]
+      summary: Create a work order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, siteId]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  $ref: "#/components/schemas/Priority"
+                siteId:
+                  type: string
+                  format: uuid
+                assetId:
+                  type: string
+                  format: uuid
+                assignedToId:
+                  type: string
+                  format: uuid
+                inspectionId:
+                  type: string
+                  format: uuid
+                inspectionAnswerId:
+                  type: string
+                  format: uuid
+                dueDate:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Created work order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /work-orders/overdue:
+    get:
+      operationId: getOverdueWorkOrders
+      tags: [work-orders]
+      summary: List overdue work orders
+      responses:
+        "200":
+          description: Overdue work orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    title:
+                      type: string
+                    priority:
+                      $ref: "#/components/schemas/Priority"
+                    status:
+                      $ref: "#/components/schemas/WorkOrderStatus"
+                    dueDate:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    site:
+                      type: object
+                      nullable: true
+                      properties:
+                        code:
+                          type: string
+                    asset:
+                      type: object
+                      nullable: true
+                      properties:
+                        name:
+                          type: string
+
+  /work-orders/{id}:
+    get:
+      operationId: getWorkOrder
+      tags: [work-orders]
+      summary: Get work order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Work order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrderDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /work-orders/{id}/status:
+    put:
+      operationId: updateWorkOrderStatus
+      tags: [work-orders]
+      summary: Update work order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: "#/components/schemas/WorkOrderStatus"
+                assignedToId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Updated work order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}/complete:
+    put:
+      operationId: completeWorkOrder
+      tags: [work-orders]
+      summary: Mark work order as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Completed work order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}/verify:
+    put:
+      operationId: verifyWorkOrder
+      tags: [work-orders]
+      summary: Verify a completed work order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Verified work order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  # ── Breakdowns ───────────────────────────────────────────────────────
+  /breakdowns:
+    get:
+      operationId: getBreakdowns
+      tags: [breakdowns]
+      summary: List breakdowns
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: assetId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  breakdowns:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Breakdown"
+                  total:
+                    type: integer
+    post:
+      operationId: createBreakdown
+      tags: [breakdowns]
+      summary: Report a breakdown
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetId, siteId, description]
+              properties:
+                assetId:
+                  type: string
+                  format: uuid
+                siteId:
+                  type: string
+                  format: uuid
+                description:
+                  type: string
+                cause:
+                  type: string
+                area:
+                  type: string
+                startedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Created breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /breakdowns/{id}/resolve:
+    put:
+      operationId: resolveBreakdown
+      tags: [breakdowns]
+      summary: Resolve a breakdown
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution:
+                  type: string
+                cause:
+                  type: string
+                manHours:
+                  type: number
+                partsCost:
+                  type: number
+                resolvedAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Resolved breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /breakdowns/trends:
+    get:
+      operationId: getBreakdownTrends
+      tags: [breakdowns]
+      summary: Breakdown trends analytics
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakdownTrends"
+
+  /breakdowns/predict/{assetId}:
+    get:
+      operationId: predictBreakdown
+      tags: [breakdowns]
+      summary: Predict next breakdown for an asset
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Prediction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakdownPrediction"
+
+  # ── PPM ──────────────────────────────────────────────────────────────
+  /ppm:
+    get:
+      operationId: getPPMSchedules
+      tags: [ppm]
+      summary: List PPM schedules
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of PPM schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PPMSchedule"
+    post:
+      operationId: createPPMSchedule
+      tags: [ppm]
+      summary: Create a PPM schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetId, taskName, frequency, nextDueAt]
+              properties:
+                assetId:
+                  type: string
+                  format: uuid
+                templateId:
+                  type: string
+                  format: uuid
+                taskName:
+                  type: string
+                description:
+                  type: string
+                frequency:
+                  $ref: "#/components/schemas/PPMFrequency"
+                nextDueAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Created PPM schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PPMSchedule"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ppm/{id}:
+    put:
+      operationId: updatePPMSchedule
+      tags: [ppm]
+      summary: Update a PPM schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                taskName:
+                  type: string
+                description:
+                  type: string
+                frequency:
+                  $ref: "#/components/schemas/PPMFrequency"
+                nextDueAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Updated PPM schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PPMSchedule"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePPMSchedule
+      tags: [ppm]
+      summary: Delete a PPM schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ppm/{id}/complete:
+    post:
+      operationId: completePPMSchedule
+      tags: [ppm]
+      summary: Record a PPM completion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: PPM completion recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PPMCompletion"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Attachments ──────────────────────────────────────────────────────
+  /attachments:
+    post:
+      operationId: uploadAttachment
+      tags: [attachments]
+      summary: Upload a file attachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                workOrderId:
+                  type: string
+                  format: uuid
+                inspectionAnswerId:
+                  type: string
+                  format: uuid
+                breakdownId:
+                  type: string
+                  format: uuid
+                assetMovementId:
+                  type: string
+                  format: uuid
+                lat:
+                  type: number
+                lng:
+                  type: number
+                capturedAt:
+                  type: string
+                  format: date-time
+                deviceInfo:
+                  type: string
+      responses:
+        "201":
+          description: Uploaded attachment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attachment"
+        "400":
+          description: No file uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attachments/{id}:
+    get:
+      operationId: getAttachment
+      tags: [attachments]
+      summary: Download attachment binary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: File binary
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Asset Movements ──────────────────────────────────────────────────
+  /movements:
+    post:
+      operationId: createAssetMovement
+      tags: [asset-movements]
+      summary: Move an asset to a new site
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetId, toSiteId]
+              properties:
+                assetId:
+                  type: string
+                  format: uuid
+                fromSiteId:
+                  type: string
+                  format: uuid
+                toSiteId:
+                  type: string
+                  format: uuid
+                preInspectionId:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Movement created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetMovement"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /movements/{id}/arrive:
+    put:
+      operationId: arriveAssetMovement
+      tags: [asset-movements]
+      summary: Record arrival of an asset movement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                postInspectionId:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Updated movement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetMovement"
+
+  # ── Admin ────────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: getAdminUsers
+      tags: [admin]
+      summary: List users (admin/site-manager)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createAdminUser
+      tags: [admin]
+      summary: Create a user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, role]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                role:
+                  $ref: "#/components/schemas/UserRole"
+                siteId:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users/{id}:
+    put:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Update a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                role:
+                  $ref: "#/components/schemas/UserRole"
+                siteId:
+                  type: string
+                  format: uuid
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: List all app settings
+      responses:
+        "200":
+          description: List of settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppSetting"
+
+  /admin/settings/{key}:
+    put:
+      operationId: updateAdminSetting
+      tags: [admin]
+      summary: Create or update an app setting
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+      responses:
+        "200":
+          description: Updated setting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSetting"
+
+  # ── Asset Scans ──────────────────────────────────────────────────────
+  /asset-scans:
+    post:
+      operationId: createAssetScan
+      tags: [asset-scans]
+      summary: Log an asset scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetId, method]
+              properties:
+                assetId:
+                  type: string
+                  format: uuid
+                method:
+                  $ref: "#/components/schemas/ScanMethod"
+                lat:
+                  type: number
+                lng:
+                  type: number
+                deviceInfo:
+                  type: string
+      responses:
+        "201":
+          description: Scan logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetScan"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: getAssetScans
+      tags: [asset-scans]
+      summary: List asset scans (audit log)
+      parameters:
+        - name: assetId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated scans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssetScan"
+                  total:
+                    type: integer
+
+  # ── Reports ──────────────────────────────────────────────────────────
+  /reports/compliance:
+    get:
+      operationId: getComplianceReport
+      tags: [reports]
+      summary: Inspection compliance report
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Compliance report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceReport"
+
+  /reports/failures:
+    get:
+      operationId: getFailuresReport
+      tags: [reports]
+      summary: Failure analysis report
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Failure report
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FailureReportEntry"
+
+  /reports/work-orders:
+    get:
+      operationId: getWorkOrdersReport
+      tags: [reports]
+      summary: Work orders summary report
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Work order report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrderReport"
+
+  /reports/audit:
+    get:
+      operationId: getAuditReport
+      tags: [reports]
+      summary: Audit trail report
+      parameters:
+        - name: type
+          in: query
+          description: "Comma-separated list: INSPECTION,WORK_ORDER,BREAKDOWN,PPM"
+          schema:
+            type: string
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: assetId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Audit report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditReport"
+
+  /reports/breakdowns:
+    get:
+      operationId: getBreakdownsReport
+      tags: [reports]
+      summary: Breakdown summary report
+      parameters:
+        - name: siteId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Breakdown report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakdownReport"
