@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { pinoPlugin } from "esbuild-plugin-pino";
+import pinoPlugin from "esbuild-plugin-pino";
 
 await build({
   entryPoints: ["src/index.ts"],
