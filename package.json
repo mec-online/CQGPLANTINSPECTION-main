@@ -1,20 +1,19 @@
 {
   "name": "workspace",
   "private": true,
-  "version": "0.0.0",
-  "license": "MIT",
+  "version": "1.0.0",
+  "workspaces": [
+    "artifacts/*",
+    "lib/*"
+  ],
   "scripts": {
-    "install:all": "npm install --workspaces",
+    "dev": "concurrently \"npm run dev -w api-server\" \"npm run dev -w cqg-plant-inspection\"",
     "build": "npm run build --workspaces",
-      "dev": "concurrently \"npm run dev -w @workspace/api-server\" \"npm run dev -w @workspace/cqg-plant-inspection\"",
-    "start": "npm run start -w @workspace/api-server"
+    "install:all": "npm install --workspaces"
   },
-  "private": true,
   "devDependencies": {
-    "@types/node": "^25.6.2",
-    "concurrently": "^9.2.1",
-    "prettier": "^3.8.1",
-    "typescript": "~5.9.2",
-    "vite": "^8.0.11"
+    "concurrently": "^9.0.0",
+    "typescript": "^5.8.3",
+    "@types/node": "^22.15.18"
   }
 }

@@ -1,8 +1,9 @@
 {
   "name": "@workspace/db",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts"
@@ -13,14 +14,14 @@
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",
-    "drizzle-orm": "catalog:",
+    "drizzle-orm": "^0.44.0",
     "drizzle-zod": "^0.8.3",
-    "pg": "^8.20.0",
-    "zod": "catalog:"
+    "pg": "^8.16.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "@types/pg": "^8.18.0",
+    "@types/node": "^22.15.18",
+    "@types/pg": "^8.15.2",
     "drizzle-kit": "^0.31.9"
   }
 }

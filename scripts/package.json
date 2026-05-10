@@ -1,16 +1,16 @@
 {
   "name": "@workspace/scripts",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
-    "@workspace/db": "workspace:*",
-    "tsx": "catalog:"
+    "@workspace/db": "file:../lib/db",
+    "tsx": "^4.19.4"
   },
   "devDependencies": {
-    "@types/node": "catalog:"
+    "@types/node": "^22.15.18"
   }
 }
